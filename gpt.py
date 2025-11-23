@@ -3,23 +3,24 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 64 # how many independent sequences will we process in parallel?
+batch_size = 128 # how many independent sequences will we process in parallel?
 block_size = 256 # what is the maximum context length for predictions?
 max_iters = 5000
 eval_interval = 500
 learning_rate = 3e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-eval_iters = 200
-n_embd = 384
+print(device)
+eval_iters = 200    
+n_embd = 100    # values that I should be changing here og 384    115 speech
 n_head = 6
-n_layer = 6
+n_layer = 8
 dropout = 0.2
 # ------------
 
 torch.manual_seed(1337)
 
 # wget https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
-with open('input_shakespeare.txt', 'r', encoding='utf-8') as f:
+with open('input_childSpeech_trainingSet.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
 # here are all the unique characters that occur in this text
@@ -44,6 +45,22 @@ n = int(0.9*len(data)) # first 90% will be train, rest val
 train_data = data[:n]
 val_data = data[n:]
 
+
+# # test data
+# with open('input_childSpeech_trainingSet.txt', 'r', encoding='utf-8') as test:
+#     test_text = test.read()
+# # encode test (currently same char only)
+# test_data = torch.tensor(encode(test_text, dtype=torch.long))
+
+
+# # here are all the unique characters that occur in this text
+# chars = sorted(list(set(test_text)))
+# vocab_size = len(chars)
+
+# prevents encode differences error:  (check that mf)
+def encode_the_same(s):
+    return [stoi[c] for c in s if c in stoi]
+
 # data loading
 def get_batch(split):
     # generate a small batch of data of inputs x and targets y
@@ -67,6 +84,25 @@ def estimate_loss():
         out[split] = losses.mean()
     model.train()
     return out
+
+def get_test_batch(test_data):
+    ix = torch.randint(len(test_data) - block_size, (batch_size,))
+    x = torch.stack([test_data[i:i+block_size] for i in ix])
+    y = torch.stack([test_data[i+1:i+block_size+1] for i in ix])
+    x, y = x.to(device), y.to(device)
+    return ""
+
+# needs the safe encoding done first
+@torch.no_grad()
+def compute_test_loss(test_ids):
+    model.eval()  ## compute the losses and report on them
+    losses = torch.zeros(eval_iters)
+    for i in range(eval_iters):
+        xb, yb = get_test_batch(test_ids)
+        _, loss = model(xb, yb)
+        losses[i] = loss.item()
+    model.train()
+    return ""
 
 class Head(nn.Module):
     """ one head of self-attention """
@@ -201,6 +237,7 @@ class GPTLanguageModel(nn.Module):
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
         return idx
+    
 
 model = GPTLanguageModel()
 m = model.to(device)
@@ -231,3 +268,4 @@ for iter in range(max_iters):
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
 print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
 #open('more.txt', 'w').write(decode(m.generate(context, max_new_tokens=10000)[0].tolist()))
+
